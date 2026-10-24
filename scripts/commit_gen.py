@@ -105,6 +105,15 @@ def generate_commits(
     return [generate_commit(persona_type, product_name) for _ in range(count)]
 
 
+def generate_showcase(product_name: str | None = None) -> list[tuple[str, str]]:
+    """为全部人格各生成一条 commit, 用于「全部人格」命令.
+
+    Returns:
+        [(人格类型, commit message), ...] 共 6 条.
+    """
+    return [(name, generate_commit(name, product_name)) for name in COMMIT_TEMPLATES]
+
+
 def list_personas() -> list[str]:
     """返回全部支持的人格类型列表."""
     return list(COMMIT_TEMPLATES.keys())

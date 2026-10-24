@@ -156,6 +156,46 @@ def check_commit_mock_fallback() -> str:
     return f"mock 菜单 {len(commit_gen.MOCK_PRODUCTS)} 款, 降级命中 {len(hits)} 款, 批量生成正常"
 
 
+def check_commit_showcase() -> str:
+    """测试「全部人格」命令: generate_showcase 覆盖全部人格."""
+    showcase = commit_gen.generate_showcase("巨无霸")
+    assert len(showcase) == len(commit_gen.COMMIT_TEMPLATES) == 6, showcase
+    for persona_type, message in showcase:
+        assert message and "{" not in message and "}" not in message, message
+    return "generate_showcase 为 6 种人格各生成一条, 占位符填充完整"
+
+
+def check_persona_key_case() -> str:
+    """测试答题 key 大小写不敏感(Q1/q1 均可)."""
+    upper = persona.calculate_persona({"Q1": "B", "Q2": "A", "Q3": "C"})
+    lower = persona.calculate_persona({"q1": "B", "q2": "A", "q3": "C"})
+    assert upper == lower, "Q1/q1 大小写结果不一致"
+    assert upper["persona_type"] == "麦辣嗜辣者"
+    return "答题 key 大小写不敏感验证通过"
+
+
+def check_readonly_tool_whitelist() -> str:
+    """测试 MCP 客户端只读白名单不含任何写操作工具."""
+    allowed = {
+        "query-meals",
+        "list-nutrition-foods",
+        "query-nearby-stores",
+    }
+    forbidden = {
+        "create-order",
+        "cancel-order",
+        "auto-bind-coupons",
+        "delivery-create-address",
+        "calculate-price",
+        "mall-create-order",
+        "party-order-create",
+        "draw-lottery",
+    }
+    assert set(mcp_client.READONLY_TOOLS) == allowed, mcp_client.READONLY_TOOLS
+    assert not (set(mcp_client.READONLY_TOOLS) & forbidden)
+    return "只读白名单仅含 3 个官方只读工具, 无任何写操作工具"
+
+
 def check_token_utils() -> str:
     """测试 mask_token() 与 Token 格式校验(使用一次性假 Token)."""
     assert mcp_client.mask_token(FAKE_TOKEN) == "Vibe****"
@@ -261,6 +301,14 @@ def check_easter_egg_asset() -> str:
     return f"彩蛋字符画 {len(lines)} 行(要求 15-20), 内容完整"
 
 
+def check_skill_md_size() -> str:
+    """检查 SKILL.md 正文不超过 500 行(规格硬约束)."""
+    text = (PROJECT_ROOT / "SKILL.md").read_text(encoding="utf-8")
+    total = len(text.splitlines())
+    assert total <= 500, f"SKILL.md 共 {total} 行, 超过 500 行上限"
+    return f"SKILL.md 共 {total} 行(上限 500)"
+
+
 #: 检查项注册表(按执行顺序)
 CHECKS: tuple[tuple[str, Callable[[], str]], ...] = (
     ("文件完整性", check_files_exist),
@@ -269,14 +317,18 @@ CHECKS: tuple[tuple[str, Callable[[], str]], ...] = (
     ("人格非法输入", check_persona_invalid),
     ("commit 模板与生成", check_commit_templates),
     ("commit mock 降级", check_commit_mock_fallback),
+    ("全部人格 showcase", check_commit_showcase),
+    ("人格 key 大小写", check_persona_key_case),
     ("Token 掩码工具", check_token_utils),
     ("Token 写入 .env", check_save_token_to_env),
+    ("只读工具白名单", check_readonly_tool_whitelist),
     ("无 Token 降级", check_degradation_no_token),
     ("Token 安全扫描", check_security_scan),
     ("参赛声明官方原文", check_declaration_official),
     ("MCP 配置示例", check_mcp_config_example),
     (".gitignore", check_gitignore),
     ("彩蛋字符画", check_easter_egg_asset),
+    ("SKILL.md 行数上限", check_skill_md_size),
 )
 
 

@@ -342,9 +342,8 @@ def _resolve_store_code(store_hint: str | None) -> str | None:
     if hint.isdigit():
         return hint
     city = hint or DEFAULT_CITY
-    keyword = DEFAULT_KEYWORD if hint else DEFAULT_KEYWORD
     try:
-        stores = call_query_nearby_stores(city=city, keyword=keyword)
+        stores = call_query_nearby_stores(city=city, keyword=DEFAULT_KEYWORD)
     except Exception:
         stores = []
     for store in stores:

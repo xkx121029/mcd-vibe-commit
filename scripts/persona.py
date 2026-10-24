@@ -163,19 +163,21 @@ def calculate_persona(answers: dict[str, str]) -> dict[str, Any]:
 
 
 def _normalize_answers(answers: dict[str, str]) -> dict[str, str]:
-    """校验并规范化答题输入."""
+    """校验并规范化答题输入(key 大小写不敏感, 如 Q1/q1 均可)."""
     if not isinstance(answers, dict):
         raise ValueError(
             "answers 必须是 dict, 形如 {'q1': 'A', 'q2': 'B', 'q3': 'C'}"
         )
+    # key 宽松化: 去空白 + 转小写, 兼容用户输入 "Q1"
+    lowered = {str(key).strip().lower(): value for key, value in answers.items()}
     normalized: dict[str, str] = {}
     for question in ("q1", "q2", "q3"):
-        if question not in answers:
+        if question not in lowered:
             raise ValueError(f"缺少答题 {question}, 需要 q1/q2/q3 三道题的答案")
-        answer = str(answers[question]).strip().upper()
+        answer = str(lowered[question]).strip().upper()
         if answer not in VALID_ANSWERS:
             raise ValueError(
-                f"{question} 的答案 {answers[question]!r} 不合法, 只能是 A/B/C/D"
+                f"{question} 的答案 {lowered[question]!r} 不合法, 只能是 A/B/C/D"
             )
         normalized[question] = answer
     return normalized

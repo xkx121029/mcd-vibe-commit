@@ -42,8 +42,9 @@
 | 官方规范对齐 | 抓取大赛主仓库 README / activityGuidelines / CONTEST_DECLARATION 原文 | 必需文件清单、报名 Issue 格式、CONTEST_DECLARATION.md 官方原文 |
 | MCP 协议验证 | 用 `tools/list` 读取官方 schema，发现 `query-meals` 必填 storeCode/orderType/beType；实测「查门店→拉菜单」全流程 | `mcp_client.py` 的真实调用链与混合文本 JSON 解析 |
 | 编码 | 人格判定矩阵、commit 模板池、Token 掩码/落盘工具 | `scripts/persona.py`、`commit_gen.py`、`mcp_client.py`、`init.py` |
-| 自检 | 离线运行 `verify.py`（不依赖真实 Token 与网络） | 全绿 ✅ All checks passed! |
-| 交付 | git 初始化与首次提交 | `init: mcd-vibe-commit skill` |
+| 自检 | 离线运行 `verify.py`（不依赖真实 Token 与网络） | 全绿 ✅ All checks passed!（14 项检查） |
+| 端到端 | 测试 Token 写入本地 `.env`（chmod 600，gitignored）后跑通「答题→人格→MCP 真实菜单→commit」 | 拉取 12 个真实餐品名，commit 成功填充 |
+| 交付 | git 初始化与首次提交 | `68d5b90 init: mcd-vibe-commit skill`；git 全历史无 Token 明文 |
 
 ## 4. Skill 调试方法
 

@@ -55,8 +55,11 @@ metadata:
 Agent 执行步骤：
 
 1. 提取 Token 字符串，校验格式（长度 ≥ 20，仅字母数字）；
-2. 调用 `scripts/mcp_client.py` 的 `save_token_to_env(token)` 写入项目根目录
-   `.env`（写入或覆盖 `MCP_TOKEN` 行，Unix 下 chmod 600）；
+2. 调用 `scripts/mcp_client.py` 的 `save_token_to_env(token)` 写入**项目根目录**
+   `.env`（写入或覆盖 `MCP_TOKEN` 行，Unix 下 chmod 600）——
+   ⚠️ 必须传入项目根目录下 `.env` 的**绝对路径**（即本 SKILL.md 所在目录的
+   `.env`，可拼接 `scripts/init.py` 中 `PROJECT_ROOT` 得到），避免 Agent 工作
+   目录不在项目根时把 `.env` 写错位置；
 3. `os.environ["MCP_TOKEN"] = token` 立即生效；
 4. 回复：`✅ Token 已保存（{前4位}****），正在为你生成麦门人格 commit...`
    （只显示前 4 位，**不回显完整 Token**）；
@@ -180,10 +183,20 @@ message = generate_commit(result["persona_type"], product_name)
 想再换一条？回「再来一条」；想看看全部人格？回「全部人格」。
 ```
 
+**命令响应规则**（生成完成后，用户可随时说）：
+
+| 用户输入 | Agent 行为 |
+|---|---|
+| 「再来一条」 | 同人格重新生成；`mcp_mode=live` 时从已拉取的餐品名中另选一个，没有则重跑 `call_query_meals()`；累计生成次数 +1 |
+| 「全部人格」 | 调用 `commit_gen.generate_showcase(product_name)`，为 6 种人格各输出一条 commit；彩蛋计数 +1 |
+| 「换个人格」/「重新测」 | 回到 Step 1 重新答题 |
+| 「配置 Token」/「换 Token」 | 回到 §1 流程 |
+
 ### Step 5 · 彩蛋（连续生成 5 次后）
 
-同一会话内累计生成满 5 次 commit 后，展示 `assets/ascii_burger.txt`
-的 ASCII 汉堡字符画，并附一句：`🍔 连续 commit 5 次，奖励一个汉堡！`
+在同一会话内维护计数器 `vibe_commit_count`：每次成功生成 commit（含「再来一条」
+「全部人格」）后 +1；累计满 5 次时，展示 `assets/ascii_burger.txt` 的 ASCII
+汉堡字符画，并附一句：`🍔 连续 commit 5 次，奖励一个汉堡！`，随后计数清零。
 
 ---
 
