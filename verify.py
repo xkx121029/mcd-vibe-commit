@@ -3,7 +3,7 @@
 
 检查项:
 1. 必需文件完整性(与大赛报名要求对齐);
-2. calculate_persona() 示例(覆盖 6 种人格 + 兜底 + 非法输入);
+2. calculate_persona() 示例(覆盖 9 种人格 + 兜底 + 非法输入 + 选项可达性枚举);
 3. generate_commit() 示例(模板完备性 + mock 降级 + 无未填充占位符);
 4. save_token_to_env() + mask_token()(使用一次性假 Token, 临时目录);
 5. 无 Token 时降级正常(只读调用安静返回 [], 不发任何网络请求);
@@ -45,11 +45,12 @@ _PERSONA_EXPECTATIONS: tuple[tuple[dict[str, str], str, str], ...] = (
     ({"q1": "D", "q2": "C", "q3": "C"}, "凌晨四点麦门人", "🌙"),
     ({"q1": "B", "q2": "A", "q3": "C"}, "麦辣嗜辣者", "🌶️"),
     ({"q1": "A", "q2": "C", "q3": "A"}, "巨无霸原教旨派", "🍔"),
-    ({"q1": "A", "q2": "C", "q3": "D"}, "薯条原教旨主义者", "🍟"),
+    ({"q1": "A", "q2": "C", "q3": "F"}, "薯条原教旨主义者", "🍟"),
     ({"q1": "A", "q2": "A", "q3": "A"}, "券包仓鼠", "🐹"),
     ({"q1": "C", "q2": "B", "q3": "A"}, "麦咖啡续命党", "🥤"),
+    ({"q1": "A", "q2": "D", "q3": "E"}, "麦咖啡续命党", "🥤"),  # 咖啡因路径
     ({"q1": "A", "q2": "D", "q3": "B"}, "麦淇淋甜蜜派", "🍦"),
-    ({"q1": "A", "q2": "B", "q3": "D"}, "麦当劳效率侠", "⚡"),
+    ({"q1": "A", "q2": "B", "q3": "A"}, "麦当劳效率侠", "⚡"),
     ({"q1": "A", "q2": "D", "q3": "A"}, "随心配体验官", "🎲"),  # 兜底
 )
 
@@ -58,8 +59,10 @@ _MBTI_EXPECTATIONS: tuple[tuple[dict[str, str], str], ...] = (
     ({"q1": "D", "q2": "C", "q3": "C"}, "LSGU"),  # 凌晨四点麦门人
     ({"q1": "B", "q2": "A", "q3": "C"}, "DSFC"),  # 麦辣嗜辣者
     ({"q1": "A", "q2": "A", "q3": "A"}, "DBFC"),  # 券包仓鼠
-    ({"q1": "C", "q2": "B", "q3": "A"}, "LBGC"),  # 麦咖啡续命党
+    ({"q1": "C", "q2": "B", "q3": "A"}, "LBGC"),  # 麦咖啡续命党(熬夜路径)
     ({"q1": "A", "q2": "D", "q3": "A"}, "DBGC"),  # 随心配体验官
+    ({"q1": "A", "q2": "B", "q3": "A"}, "DBGC"),  # 麦当劳效率侠
+    ({"q1": "C", "q2": "F", "q3": "B"}, "LSFU"),  # 麦辣嗜辣者, F+U 组合可达
 )
 
 #: 安全扫描: 提交文件中不允许出现的 Token 明文模式
@@ -100,6 +103,33 @@ def check_persona_matrix() -> str:
     return f"{len(_PERSONA_EXPECTATIONS)} 组答题覆盖全部 9 种人格, 判定全部正确"
 
 
+def check_option_coverage() -> str:
+    """v3 选项扩容校验: 6 个选项全部合法; 枚举 216 组合, 9 人格与 16 四字母全部可达."""
+    import itertools
+
+    letters = list(persona.VALID_ANSWERS)
+    assert letters == ["A", "B", "C", "D", "E", "F"], letters
+    personas_hit: set[str] = set()
+    codes_hit: set[str] = set()
+    for q1, q2, q3 in itertools.product(letters, repeat=3):
+        result = persona.calculate_persona({"q1": q1, "q2": q2, "q3": q3})
+        personas_hit.add(result["persona_type"])
+        codes_hit.add(result["mbti_code"])
+    assert personas_hit == set(persona.list_persona_types()), (
+        f"存在不可达人格: {set(persona.list_persona_types()) - personas_hit}"
+    )
+    expected_codes = {
+        "".join(combo)
+        for combo in itertools.product(
+            *[(high, low) for _, high, low, _, _ in persona.MBTI_DIMENSIONS]
+        )
+    }
+    assert codes_hit == expected_codes, (
+        f"存在不可达四字母代码: {sorted(expected_codes - codes_hit)}"
+    )
+    return "6 个选项全部合法, 216 种组合覆盖全部 9 人格与 16 种四字母代码"
+
+
 def check_mbti_code() -> str:
     """测试 MBTI 式四字母代码: 长度/字符集/预期代码/称号/释义."""
     import itertools
@@ -128,31 +158,44 @@ def check_mbti_code() -> str:
     assert persona.mbti_code({**base, "late_night": 2})[0] == "L"
     # 4. 未知代码兜底
     assert persona.mbti_title("ZZZZ") == persona._MBTI_TITLE_DEFAULT
-    return "16 种组合称号齐全, 5 组预期代码正确, 阈值与兜底正常"
+    return "16 种组合称号齐全, 7 组预期代码正确, 阈值与兜底正常"
 
 
 def check_persona_scores() -> str:
-    """测试维度计分准确性."""
+    """测试维度计分准确性(含 v3 新增 coffee 维度与新选项)."""
     result = persona.calculate_persona({"q1": "B", "q2": "A", "q3": "C"})
     expected = {
         "late_night": 1,
         "spicy": 3,
-        "sweet": 3,
+        "sweet": 0,
         "thrifty": 3,
         "efficient": 0,
         "ritual": 0,
+        "coffee": 0,
     }
     assert result["scores"] == expected, f"得分 {result['scores']} != {expected}"
+    # 新选项计分: Q1E(早餐档, coffee+1) + Q2F(老位置用券) + Q3E(咖啡因优先)
+    result2 = persona.calculate_persona({"q1": "E", "q2": "F", "q3": "E"})
+    expected2 = {
+        "late_night": 0,
+        "spicy": 0,
+        "sweet": 0,
+        "thrifty": 2,
+        "efficient": 0,
+        "ritual": 2,
+        "coffee": 4,
+    }
+    assert result2["scores"] == expected2, f"得分 {result2['scores']} != {expected2}"
     # 大小写与空白容忍
-    result2 = persona.calculate_persona({"q1": " b ", "q2": "a", "q3": "c"})
-    assert result2["persona_type"] == "麦辣嗜辣者"
-    return "Q1/Q2/Q3 计分规则与大小写容忍验证通过"
+    result3 = persona.calculate_persona({"q1": " b ", "q2": "a", "q3": "c"})
+    assert result3["persona_type"] == "麦辣嗜辣者"
+    return "Q1/Q2/Q3 计分(含新选项与 coffee 维度)与大小写容忍验证通过"
 
 
 def check_persona_invalid() -> str:
     """测试非法输入抛出 ValueError."""
     for bad in (
-        {"q1": "E", "q2": "A", "q3": "C"},
+        {"q1": "G", "q2": "A", "q3": "C"},
         {"q1": "A", "q2": "B"},
         {"q1": "1", "q2": "2", "q3": "3"},
         "not-a-dict",
@@ -182,7 +225,7 @@ def check_commit_templates() -> str:
     for _ in range(50):
         message = commit_gen.generate_commit(random.choice(personas), "麦辣鸡腿堡")
         assert message and "{" not in message and "}" not in message, message
-    return "6 种人格模板 3-5 条/种, 占位符填充完整, 随机生成 50 次无残留"
+    return "9 种人格模板 3-5 条/种, 占位符填充完整, 随机生成 50 次无残留"
 
 
 def check_commit_mock_fallback() -> str:
@@ -383,6 +426,7 @@ def check_skill_md_size() -> str:
 CHECKS: tuple[tuple[str, Callable[[], str]], ...] = (
     ("文件完整性", check_files_exist),
     ("人格判定矩阵", check_persona_matrix),
+    ("选项覆盖与可达性", check_option_coverage),
     ("MBTI 四字母代码", check_mbti_code),
     ("人格维度计分", check_persona_scores),
     ("人格非法输入", check_persona_invalid),

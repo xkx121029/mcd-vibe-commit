@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """麦门人格判定模块(9 种人格 + MBTI 式四字母代码).
 
-根据 3 道题的答案计算 6 个维度得分, 再按优先级矩阵判定麦门人格,
+根据 3 道题的答案计算 7 个维度得分, 再按优先级矩阵判定麦门人格,
 并输出 MBTI 式四字母代码(如 LSGU)与对应称号.
 维度/计分/人格矩阵的完整说明见 references/persona-matrix.md.
 
@@ -14,9 +14,9 @@ from __future__ import annotations
 from typing import Any
 
 #: 合法答案(大小写不敏感)
-VALID_ANSWERS: tuple[str, ...] = ("A", "B", "C", "D")
+VALID_ANSWERS: tuple[str, ...] = ("A", "B", "C", "D", "E", "F")
 
-#: 6 个测评维度
+#: 7 个测评维度
 DIMENSIONS: tuple[str, ...] = (
     "late_night",  # 凌晨浓度
     "spicy",       # 嗜辣程度
@@ -24,29 +24,42 @@ DIMENSIONS: tuple[str, ...] = (
     "thrifty",     # 精打细算
     "efficient",   # 效率优先
     "ritual",      # 仪式感
+    "coffee",      # 咖啡因浓度
 )
 
 # --------------------------------------------------------------------------
 # 计分规则(与 references/persona-matrix.md 保持一致, 改规则请同步改文档)
+# 每题 6 个选项(A-F), 覆盖早餐/夜宵/新品/拼单/甜食/咖啡等食客画像.
 # --------------------------------------------------------------------------
 
-#: Q1 -> late_night(凌晨一点的你在干嘛)
-_Q1_LATE_NIGHT: dict[str, int] = {"A": 0, "B": 1, "C": 2, "D": 3}
-
-#: Q2 -> thrifty / efficient / ritual(点餐决策风格)
-_Q2_SCORES: dict[str, dict[str, int]] = {
-    "A": {"thrifty": 3},
-    "B": {"efficient": 3},
-    "C": {"ritual": 3},
-    "D": {},
+#: Q1 -> late_night / coffee(一天中的哪个时刻, 你最想来一口麦当劳)
+_Q1_SCORES: dict[str, dict[str, int]] = {
+    "A": {"late_night": 0},               # 早睡了, 明天还要搬砖
+    "B": {"late_night": 1},               # 再刷五分钟手机就睡
+    "C": {"late_night": 2},               # 赶 due / 修 bug, 凌晨是常态
+    "D": {"late_night": 3},               # 凌晨四点的麦门, 你懂
+    "E": {"late_night": 0, "coffee": 1},  # 早餐档: 麦满分 + 鲜煮咖啡
+    "F": {"late_night": 2},               # 夜宵中场: 十点后的第二晚餐
 }
 
-#: Q3 -> spicy / sweet / efficient / ritual(本命口味组合)
+#: Q2 -> thrifty / efficient / ritual(点麦当劳时, 你的决策风格)
+_Q2_SCORES: dict[str, dict[str, int]] = {
+    "A": {"thrifty": 3},                  # 先翻券包, 没有满减绝不下单
+    "B": {"efficient": 3},                # 30 秒点完常吃的那款, 拒绝纠结
+    "C": {"ritual": 3},                   # 老配方老时间老位置, 仪式感拉满
+    "D": {},                              # 看心情, 随机刷新隐藏吃法
+    "E": {},                              # 新品 / 限定先行, 尝鲜才是正义
+    "F": {"thrifty": 2, "ritual": 2},     # 老位置老配方, 券也必须张张用上
+}
+
+#: Q3 -> spicy / sweet / coffee / efficient / ritual(以下哪个组合是你的本命)
 _Q3_SCORES: dict[str, dict[str, int]] = {
-    "A": {},
-    "B": {"spicy": 2, "sweet": 2},
-    "C": {"spicy": 3, "sweet": 3},
-    "D": {"efficient": 2, "ritual": 1},
+    "A": {},                              # 不辣不甜, 经典原味永流传
+    "B": {"spicy": 2, "sweet": 2},        # 辣与甜我全都要, 双倍快乐
+    "C": {"spicy": 3},                    # 无辣不欢, 辣度直接拉满
+    "D": {"sweet": 3},                    # 甜食优先: 甜筒 / 麦旋风 / 派
+    "E": {"coffee": 3},                   # 咖啡因优先: 麦咖啡一天两杯打底
+    "F": {"efficient": 2, "ritual": 1},   # 一人食快速解决, 顺手走个固定流程
 }
 
 # --------------------------------------------------------------------------
@@ -59,7 +72,9 @@ _Q3_SCORES: dict[str, dict[str, int]] = {
 #    无法命中, 因此巨无霸必须先判定;
 # 3. "麦淇淋甜蜜派" 与 "麦当劳效率侠" 为 v2 新增人格, 分别覆盖嗜甜与
 #    高效率低仪式维度, 排在特异性更高的经典人格之后;
-# 4. 全部未命中时使用兜底人格"随心配体验官"(保证任何答题都有结果).
+# 4. "麦咖啡续命党" 有两条命中路径: 熬夜(late_night>=2)或咖啡因成瘾
+#    (coffee>=2), 后者让白天咖啡党也能命中, 不必强行熬夜;
+# 5. 全部未命中时使用兜底人格"随心配体验官"(保证任何答题都有结果).
 _PERSONA_RULES: tuple[dict[str, Any], ...] = (
     {
         "type": "凌晨四点麦门人",
@@ -109,7 +124,7 @@ _PERSONA_RULES: tuple[dict[str, Any], ...] = (
     {
         "type": "麦咖啡续命党",
         "emoji": "🥤",
-        "condition": lambda s: s["late_night"] >= 2,
+        "condition": lambda s: s["late_night"] >= 2 or s["coffee"] >= 2,
         "description": (
             "咖啡因是编译器的第一燃料。你的 CI 管道里流淌的不是日志, 是浓缩咖啡。"
         ),
@@ -211,7 +226,7 @@ def calculate_persona(answers: dict[str, str]) -> dict[str, Any]:
         - persona_type: 人格类型(中文名, 共 9 种)
         - persona_emoji: 人格 Emoji
         - description: 人格描述
-        - scores: 6 个维度的得分 dict
+        - scores: 7 个维度(含 coffee)的得分 dict
         - mbti_code: MBTI 式四字母代码(如 "LSGU")
         - mbti_title: 四字母组合称号
         - mbti_desc: 四个字母的释义拼接
@@ -222,12 +237,13 @@ def calculate_persona(answers: dict[str, str]) -> dict[str, Any]:
     normalized = _normalize_answers(answers)
     scores = {dim: 0 for dim in DIMENSIONS}
 
-    # Q1: 仅影响 late_night
-    scores["late_night"] += _Q1_LATE_NIGHT[normalized["q1"]]
-    # Q2: 影响 thrifty / efficient / ritual 之一(或零)
+    # Q1: 影响 late_night / coffee
+    for dim, value in _Q1_SCORES[normalized["q1"]].items():
+        scores[dim] += value
+    # Q2: 影响 thrifty / efficient / ritual 之一(或组合, 或零)
     for dim, value in _Q2_SCORES[normalized["q2"]].items():
         scores[dim] += value
-    # Q3: 影响 spicy / sweet / efficient / ritual
+    # Q3: 影响 spicy / sweet / coffee / efficient / ritual
     for dim, value in _Q3_SCORES[normalized["q3"]].items():
         scores[dim] += value
 
@@ -297,7 +313,7 @@ def _normalize_answers(answers: dict[str, str]) -> dict[str, str]:
         answer = str(lowered[question]).strip().upper()
         if answer not in VALID_ANSWERS:
             raise ValueError(
-                f"{question} 的答案 {lowered[question]!r} 不合法, 只能是 A/B/C/D"
+                f"{question} 的答案 {lowered[question]!r} 不合法, 只能是 A-F"
             )
         normalized[question] = answer
     return normalized
@@ -312,11 +328,12 @@ def _judge(scores: dict[str, int]) -> dict[str, Any]:
 
 
 def main() -> int:
-    """独立运行入口: 演示三组答题的人格判定与四字母代码."""
+    """独立运行入口: 演示四组答题的人格判定与四字母代码."""
     demos = (
         {"q1": "D", "q2": "C", "q3": "C"},  # -> 凌晨四点麦门人 / LSGU
         {"q1": "B", "q2": "A", "q3": "C"},  # -> 麦辣嗜辣者 / DSFC
         {"q1": "A", "q2": "D", "q3": "A"},  # -> 随心配体验官(兜底) / DBGC
+        {"q1": "E", "q2": "D", "q3": "E"},  # -> 麦咖啡续命党(咖啡因路径) / DBGC
     )
     for answers in demos:
         result = calculate_persona(answers)
