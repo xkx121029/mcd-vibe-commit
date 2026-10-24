@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""麦门人格判定模块.
+"""麦门人格判定模块(9 种人格 + MBTI 式四字母代码).
 
-根据 3 道题的答案计算 6 个维度得分, 再按优先级矩阵判定麦门人格.
-维度与计分规则的完整说明见 references/persona-matrix.md.
+根据 3 道题的答案计算 6 个维度得分, 再按优先级矩阵判定麦门人格,
+并输出 MBTI 式四字母代码(如 LSGU)与对应称号.
+维度/计分/人格矩阵的完整说明见 references/persona-matrix.md.
 
 可独立运行: python scripts/persona.py
 仅使用标准库, 兼容 Python 3.10+.
@@ -56,8 +57,9 @@ _Q3_SCORES: dict[str, dict[str, int]] = {
 # 2. "巨无霸原教旨派" 的条件是 "薯条原教旨主义者" 的严格子集
 #    (ritual>=2 且 spicy<=1 且 efficient<=1), 若先判定薯条, 巨无霸将永远
 #    无法命中, 因此巨无霸必须先判定;
-# 3. 其余规则按特异性从高到低排列;
-# 4. 全部未命中时使用兜底人格(经典默认款).
+# 3. "麦淇淋甜蜜派" 与 "麦当劳效率侠" 为 v2 新增人格, 分别覆盖嗜甜与
+#    高效率低仪式维度, 排在特异性更高的经典人格之后;
+# 4. 全部未命中时使用兜底人格"随心配体验官"(保证任何答题都有结果).
 _PERSONA_RULES: tuple[dict[str, Any], ...] = (
     {
         "type": "凌晨四点麦门人",
@@ -112,31 +114,107 @@ _PERSONA_RULES: tuple[dict[str, Any], ...] = (
             "咖啡因是编译器的第一燃料。你的 CI 管道里流淌的不是日志, 是浓缩咖啡。"
         ),
     },
+    {
+        "type": "麦淇淋甜蜜派",
+        "emoji": "🍦",
+        "condition": lambda s: s["sweet"] >= 2,
+        "description": (
+            "生活已经够苦了, 代码就要全糖。你的世界由甜筒、麦旋风和双倍糖构成, "
+            "review 你的 PR 请自备胰岛素。"
+        ),
+    },
+    {
+        "type": "麦当劳效率侠",
+        "emoji": "⚡",
+        "condition": lambda s: s["efficient"] >= 2 and s["ritual"] <= 1,
+        "description": (
+            "90 秒出餐记录保持者。你点餐不纠结, 出活不拖更, "
+            "人生的点餐台前永远排最短的队。"
+        ),
+    },
 )
 
-#: 兜底人格: 以上规则均未命中时使用(经典默认款, 保证任何答题都有结果)
+#: 兜底人格: 以上规则均未命中时使用(v2 起独立为正式人格, 不再借用巨无霸)
 _FALLBACK_PERSONA: dict[str, Any] = {
-    "type": "巨无霸原教旨派",
-    "emoji": "🍔",
+    "type": "随心配体验官",
+    "emoji": "🎲",
     "description": (
-        "没有明显倾向? 那便是经典本身。巨无霸原教旨派欢迎每一位均衡发展的开发者。"
+        "没有标签能定义你——1+1 随心配, 随机才是你的主场。"
+        "每次刷新都有惊喜, 包括你的人生。"
     ),
 }
 
+# --------------------------------------------------------------------------
+# MBTI 式四字母代码(4 个二分维度, 共 16 种组合)
+# --------------------------------------------------------------------------
+#: (维度名, 高侧字母, 低侧字母, 高侧标签, 低侧标签)
+MBTI_DIMENSIONS: tuple[tuple[str, str, str, str, str], ...] = (
+    ("late_night", "L", "D", "凌晨型", "养生型"),
+    ("spicy", "S", "B", "嗜辣型", "原味型"),
+    ("thrifty", "F", "G", "省钱型", "豪横型"),
+    ("ritual", "U", "C", "仪式型", "随性型"),
+)
+
+#: 高侧字母阈值(维度得分 >= 2 取高侧, 否则取低侧)
+MBTI_HIGH_THRESHOLD: int = 2
+
+#: 合法四字母字符集合
+MBTI_LETTERS: frozenset[str] = frozenset(
+    letter for _, high, low, _, _ in MBTI_DIMENSIONS for letter in (high, low)
+)
+
+#: 16 种组合称号表(键为四字母代码, 顺序: L/D + S/B + F/G + U/C)
+_MBTI_TITLES: dict[str, str] = {
+    "LSFU": "凌晨四点·辣味守夜人",
+    "LSFC": "午夜辣妹·券王",
+    "LSGU": "深夜食堂主理人",
+    "LSGC": "凌晨放纵派掌门",
+    "LBFU": "夜班经典守护者",
+    "LBFC": "午夜性价比散人",
+    "LBGU": "深夜全餐鉴赏家",
+    "LBGC": "凌晨随机干饭王",
+    "DSFU": "晨间辣味卷王",
+    "DSFC": "晨间辣妹效率派",
+    "DSGU": "晨间全餐仪式党",
+    "DSGC": "晨间豪横干饭人",
+    "DBFU": "晨间省典守味人",
+    "DBFC": "清晨性价比散人",
+    "DBGU": "晨间原味鉴赏家",
+    "DBGC": "清晨随缘干饭人",
+}
+
+#: 单个字母释义(用于拼接四字母描述)
+_MBTI_LETTER_DESCS: dict[str, str] = {
+    "L": "凌晨型: 凌晨的麦门才是正统麦门, 你的生物钟跟着出餐时间走",
+    "D": "养生型: 早睡早起身体好, 早餐卡和麦满分是你的老伙计",
+    "S": "嗜辣型: 无辣不欢, 辣度就是你对生活的态度",
+    "B": "原味型: 经典原味永流传, 你的字典里没有花里胡哨",
+    "F": "省钱型: 券包比代码仓库还整洁, 每一分钱都要跑出性价比",
+    "G": "豪横型: 想吃就点, 预算管理不存在的",
+    "U": "仪式型: 老配方老位置老时间, 你是兼容性拉满的活日历",
+    "C": "随性型: 随机刷新隐藏吃法, 惊喜是你人生的主旋律",
+}
+
+#: 未知四字母代码的兜底称号
+_MBTI_TITLE_DEFAULT: str = "麦门均衡发展主义者"
+
 
 def calculate_persona(answers: dict[str, str]) -> dict[str, Any]:
-    """根据答题结果计算维度得分并判定麦门人格.
+    """根据答题结果计算维度得分, 判定麦门人格并生成 MBTI 式四字母代码.
 
     Args:
         answers: 形如 {"q1": "B", "q2": "A", "q3": "C"} 的答案字典,
-                 答案接受 A-D(大小写不敏感, 自动去除首尾空白).
+                 答案与 key 均大小写不敏感, 自动去除首尾空白.
 
     Returns:
         包含以下键的字典(JSON 序列化友好):
-        - persona_type: 人格类型(中文名)
+        - persona_type: 人格类型(中文名, 共 9 种)
         - persona_emoji: 人格 Emoji
         - description: 人格描述
         - scores: 6 个维度的得分 dict
+        - mbti_code: MBTI 式四字母代码(如 "LSGU")
+        - mbti_title: 四字母组合称号
+        - mbti_desc: 四个字母的释义拼接
 
     Raises:
         ValueError: 缺少题目, 或答案不合法时.
@@ -154,12 +232,54 @@ def calculate_persona(answers: dict[str, str]) -> dict[str, Any]:
         scores[dim] += value
 
     persona = _judge(scores)
+    code = mbti_code(scores)
     return {
         "persona_type": persona["type"],
         "persona_emoji": persona["emoji"],
         "description": persona["description"],
         "scores": scores,
+        "mbti_code": code,
+        "mbti_title": mbti_title(code),
+        "mbti_desc": mbti_desc(code),
     }
+
+
+def mbti_code(scores: dict[str, int]) -> str:
+    """由维度得分生成 MBTI 式四字母代码.
+
+    每个二分维度得分 >= MBTI_HIGH_THRESHOLD 取高侧字母, 否则取低侧字母.
+    顺序: L/D(凌晨) + S/B(辣度) + F/G(省钱) + U/C(仪式).
+    """
+    return "".join(
+        high if scores.get(dim, 0) >= MBTI_HIGH_THRESHOLD else low
+        for dim, high, low, _, _ in MBTI_DIMENSIONS
+    )
+
+
+def mbti_title(code: str) -> str:
+    """返回四字母代码对应的称号; 未知代码返回兜底称号."""
+    return _MBTI_TITLES.get(code.strip().upper(), _MBTI_TITLE_DEFAULT)
+
+
+def mbti_desc(code: str) -> str:
+    """返回四字母代码的释义拼接(每个字母一句, 分号连接)."""
+    parts = [
+        _MBTI_LETTER_DESCS[letter]
+        for letter in code.strip().upper()
+        if letter in _MBTI_LETTER_DESCS
+    ]
+    return "；".join(parts)
+
+
+def list_persona_types() -> list[str]:
+    """返回全部 9 种人格类型(规则人格 + 兜底人格, 去重保序)."""
+    seen: list[str] = []
+    for rule in _PERSONA_RULES:
+        if rule["type"] not in seen:
+            seen.append(rule["type"])
+    if _FALLBACK_PERSONA["type"] not in seen:
+        seen.append(_FALLBACK_PERSONA["type"])
+    return seen
 
 
 def _normalize_answers(answers: dict[str, str]) -> dict[str, str]:
@@ -192,15 +312,18 @@ def _judge(scores: dict[str, int]) -> dict[str, Any]:
 
 
 def main() -> int:
-    """独立运行入口: 演示三组不同答题的人格判定结果."""
+    """独立运行入口: 演示三组答题的人格判定与四字母代码."""
     demos = (
-        {"q1": "D", "q2": "C", "q3": "C"},  # -> 凌晨四点麦门人
-        {"q1": "B", "q2": "A", "q3": "C"},  # -> 麦辣嗜辣者
-        {"q1": "A", "q2": "C", "q3": "D"},  # -> 薯条原教旨主义者
+        {"q1": "D", "q2": "C", "q3": "C"},  # -> 凌晨四点麦门人 / LSGU
+        {"q1": "B", "q2": "A", "q3": "C"},  # -> 麦辣嗜辣者 / DSFC
+        {"q1": "A", "q2": "D", "q3": "A"},  # -> 随心配体验官(兜底) / DBGC
     )
     for answers in demos:
         result = calculate_persona(answers)
-        print(f"{answers} -> {result['persona_emoji']} {result['persona_type']}")
+        print(
+            f"{answers} -> {result['persona_emoji']} {result['persona_type']}"
+            f" | {result['mbti_code']} {result['mbti_title']}"
+        )
         print(f"  scores: {result['scores']}")
     return 0
 

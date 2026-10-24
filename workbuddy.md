@@ -46,6 +46,15 @@
 | 端到端 | 测试 Token 写入本地 `.env`（chmod 600，gitignored）后跑通「答题→人格→MCP 真实菜单→commit」 | 拉取 12 个真实餐品名，commit 成功填充 |
 | 交付 | git 初始化与首次提交 | `68d5b90 init: mcd-vibe-commit skill`；git 全历史无 Token 明文 |
 
+### 第 2 轮迭代（同日）
+
+| 阶段 | 对话内容 | 产出 |
+|---|---|---|
+| 需求 | 「加上至少十个彩蛋，更多人格，类似 MBTI 的四个字母结果」 | 12 个彩蛋 + 人格 6→9 + MBTI 四字母体系 |
+| 编码 | 新增 `scripts/easter_eggs.py`；`persona.py` 增加 3 种人格（麦淇淋甜蜜派/麦当劳效率侠/随心配体验官兜底独立化）与 16 组合四字母称号表；`commit_gen.py` 增加 3 组模板 | v2 代码 |
+| 文档同步 | SKILL.md 彩蛋机制、persona-matrix.md 人格/四字母矩阵、README 功能与示例 | 文档表格经代码交叉验证 9/9 一致 |
+| 自检扩容 | verify.py 从 14 项扩展到 20 项（新增 MBTI、彩蛋、人格/模板对齐检查） | 全绿 ✅ 20/20 |
+
 ## 4. Skill 调试方法
 
 ```bash

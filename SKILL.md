@@ -148,10 +148,15 @@ Q3 以下哪个组合是你的本命？
 ```python
 from persona import calculate_persona
 result = calculate_persona({"q1": "B", "q2": "A", "q3": "C"})
-# -> {"persona_type", "persona_emoji", "description", "scores"}
+# -> {"persona_type", "persona_emoji", "description", "scores",
+#     "mbti_code", "mbti_title", "mbti_desc"}
 ```
 
-判定矩阵见 `references/persona-matrix.md`。
+判定矩阵见 `references/persona-matrix.md`。共 **9 种人格**，其中
+「随心配体验官」为兜底人格（任何不命中规则的答题组合都会得到它）。
+`mbti_code` 为 MBTI 式四字母代码（L/D 凌晨浓度 + S/B 辣度 + F/G 省钱 +
+U/C 仪式感，得分 ≥2 取高侧字母），如 `LSGU`；`mbti_title` 为 16 种组合
+称号之一，如「深夜食堂主理人」。
 
 ### Step 3 · 获取餐品名（按模式分流）
 
@@ -174,8 +179,9 @@ message = generate_commit(result["persona_type"], product_name)
 输出格式（先人格、后 commit、再一句解读）：
 
 ```text
-{persona_emoji} 你是【{persona_type}】
+{persona_emoji} 你是【{persona_type}】· {mbti_code} {mbti_title}
 {description}
+{mbti_desc}
 
 为你生成的麦门人格 commit：
 > {commit message}
@@ -197,6 +203,27 @@ message = generate_commit(result["persona_type"], product_name)
 在同一会话内维护计数器 `vibe_commit_count`：每次成功生成 commit（含「再来一条」
 「全部人格」）后 +1；累计满 5 次时，展示 `assets/ascii_burger.txt` 的 ASCII
 汉堡字符画，并附一句：`🍔 连续 commit 5 次，奖励一个汉堡！`，随后计数清零。
+
+除字符画外，`scripts/easter_eggs.py` 还定义了 **12 个彩蛋**，Agent 应在合适的
+对话时机对照触发条件输出 `reward` 文案（完整清单见该模块的 `EASTER_EGGS`）：
+
+| id | 触发条件 |
+|---|---|
+| `burger_art` | 连续生成满 5 次 commit（ASCII 汉堡） |
+| `programmer_day` | 当天为 10/24 程序员节（日期型，可用 `date_triggered_eggs()` 判断） |
+| `countdown_final` | 当天为 10/25 报名截止日（日期型） |
+| `all_d_answers` | 三道题全选 D |
+| `copycat_answer` | 答案恰好是示例 B A C |
+| `late_night_greeting` | 人格为凌晨四点麦门人 |
+| `hamster_hoard` | 人格为券包仓鼠，或提到省钱/券 |
+| `spicy_overload` | Q3 选 C（辣度拉满） |
+| `sugar_rush` | 人格为麦淇淋甜蜜派 |
+| `speed_demon` | 人格为麦当劳效率侠 |
+| `random_42` | 随心配体验官且随机数为 42 |
+| `coffee_refill` | 连续 3 次生成麦咖啡人格 commit |
+
+彩蛋规则：不重复触发同一 id（会话内一次性）；不与主流程结果冲突；
+纯娱乐文案，不引导任何真实交易。
 
 ---
 
@@ -237,6 +264,7 @@ message = generate_commit(result["persona_type"], product_name)
 | `scripts/persona.py` | `calculate_persona()` 人格判定 |
 | `scripts/commit_gen.py` | `generate_commit()` commit 生成 + mock 菜单 |
 | `scripts/mcp_client.py` | MCP 只读客户端 + Token 读写/掩码工具 |
+| `scripts/easter_eggs.py` | 12 个彩蛋定义与日期型自动判断 |
 | `references/tools.md` | 只读工具白名单与写操作拒绝清单 |
 | `references/persona-matrix.md` | 答题计分与人格判定矩阵 |
 | `assets/ascii_burger.txt` | 连续 5 次生成彩蛋字符画 |

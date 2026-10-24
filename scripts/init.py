@@ -38,6 +38,7 @@ REQUIRED_FILES: tuple[str, ...] = (
     "scripts/persona.py",
     "scripts/commit_gen.py",
     "scripts/mcp_client.py",
+    "scripts/easter_eggs.py",
     "references/tools.md",
     "references/persona-matrix.md",
     "assets/ascii_burger.txt",

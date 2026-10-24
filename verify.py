@@ -31,6 +31,7 @@ PROJECT_ROOT: Path = Path(__file__).resolve().parent
 sys.path.insert(0, str(PROJECT_ROOT / "scripts"))
 
 import commit_gen  # noqa: E402
+import easter_eggs  # noqa: E402
 import init  # noqa: E402
 import mcp_client  # noqa: E402
 import persona  # noqa: E402
@@ -39,7 +40,7 @@ import persona  # noqa: E402
 FAKE_TOKEN: str = "VibeCheckLocal000011"
 FAKE_TOKEN_2: str = "RotateVibeCheck00002"
 
-#: 人格判定预期表: (答题, 人格类型, Emoji)
+#: 人格判定预期表: (答题, 人格类型, Emoji), 覆盖全部 9 种人格
 _PERSONA_EXPECTATIONS: tuple[tuple[dict[str, str], str, str], ...] = (
     ({"q1": "D", "q2": "C", "q3": "C"}, "凌晨四点麦门人", "🌙"),
     ({"q1": "B", "q2": "A", "q3": "C"}, "麦辣嗜辣者", "🌶️"),
@@ -47,7 +48,18 @@ _PERSONA_EXPECTATIONS: tuple[tuple[dict[str, str], str, str], ...] = (
     ({"q1": "A", "q2": "C", "q3": "D"}, "薯条原教旨主义者", "🍟"),
     ({"q1": "A", "q2": "A", "q3": "A"}, "券包仓鼠", "🐹"),
     ({"q1": "C", "q2": "B", "q3": "A"}, "麦咖啡续命党", "🥤"),
-    ({"q1": "A", "q2": "B", "q3": "D"}, "巨无霸原教旨派", "🍔"),  # 兜底
+    ({"q1": "A", "q2": "D", "q3": "B"}, "麦淇淋甜蜜派", "🍦"),
+    ({"q1": "A", "q2": "B", "q3": "D"}, "麦当劳效率侠", "⚡"),
+    ({"q1": "A", "q2": "D", "q3": "A"}, "随心配体验官", "🎲"),  # 兜底
+)
+
+#: MBTI 四字母预期表: (答题, 四字母代码)
+_MBTI_EXPECTATIONS: tuple[tuple[dict[str, str], str], ...] = (
+    ({"q1": "D", "q2": "C", "q3": "C"}, "LSGU"),  # 凌晨四点麦门人
+    ({"q1": "B", "q2": "A", "q3": "C"}, "DSFC"),  # 麦辣嗜辣者
+    ({"q1": "A", "q2": "A", "q3": "A"}, "DBFC"),  # 券包仓鼠
+    ({"q1": "C", "q2": "B", "q3": "A"}, "LBGC"),  # 麦咖啡续命党
+    ({"q1": "A", "q2": "D", "q3": "A"}, "DBGC"),  # 随心配体验官
 )
 
 #: 安全扫描: 提交文件中不允许出现的 Token 明文模式
@@ -75,7 +87,8 @@ def check_files_exist() -> str:
 
 
 def check_persona_matrix() -> str:
-    """测试 calculate_persona(): 6 种人格 + 兜底人格判定正确."""
+    """测试 calculate_persona(): 9 种人格(含兜底)判定正确."""
+    assert len(persona.list_persona_types()) == 9, persona.list_persona_types()
     for answers, expected_type, expected_emoji in _PERSONA_EXPECTATIONS:
         result = persona.calculate_persona(answers)
         assert result["persona_type"] == expected_type, (
@@ -84,7 +97,38 @@ def check_persona_matrix() -> str:
         assert result["persona_emoji"] == expected_emoji
         assert isinstance(result["description"], str) and result["description"]
         assert set(result["scores"]) == set(persona.DIMENSIONS)
-    return f"{len(_PERSONA_EXPECTATIONS)} 组答题(含兜底)人格判定全部正确"
+    return f"{len(_PERSONA_EXPECTATIONS)} 组答题覆盖全部 9 种人格, 判定全部正确"
+
+
+def check_mbti_code() -> str:
+    """测试 MBTI 式四字母代码: 长度/字符集/预期代码/称号/释义."""
+    import itertools
+
+    for combo in itertools.product(
+        *[(high, low) for _, high, low, _, _ in persona.MBTI_DIMENSIONS]
+    ):
+        code = "".join(combo)
+        assert len(code) == 4
+        assert set(code) <= persona.MBTI_LETTERS
+        title = persona.mbti_title(code)
+        assert title and title != persona._MBTI_TITLE_DEFAULT, f"{code} 缺少称号"
+        desc = persona.mbti_desc(code)
+        assert desc.count("；") == 3, f"{code} 释义应拼接 4 句: {desc}"
+    # 2. 预期代码
+    for answers, expected_code in _MBTI_EXPECTATIONS:
+        result = persona.calculate_persona(answers)
+        assert result["mbti_code"] == expected_code, (
+            f"{answers} 预期 {expected_code}, 实际 {result['mbti_code']}"
+        )
+        assert result["mbti_title"] == persona.mbti_title(expected_code)
+        assert result["mbti_desc"] == persona.mbti_desc(expected_code)
+    # 3. 阈值边界: 得分 1 取低侧, 2 取高侧
+    base = {dim: 0 for dim in persona.DIMENSIONS}
+    assert persona.mbti_code({**base, "late_night": 1})[0] == "D"
+    assert persona.mbti_code({**base, "late_night": 2})[0] == "L"
+    # 4. 未知代码兜底
+    assert persona.mbti_title("ZZZZ") == persona._MBTI_TITLE_DEFAULT
+    return "16 种组合称号齐全, 5 组预期代码正确, 阈值与兜底正常"
 
 
 def check_persona_scores() -> str:
@@ -124,7 +168,7 @@ def check_persona_invalid() -> str:
 def check_commit_templates() -> str:
     """测试 commit 模板完备性与占位符填充."""
     personas = commit_gen.list_personas()
-    assert len(personas) == 6, f"人格模板应有 6 种, 实际 {len(personas)}"
+    assert len(personas) == 9, f"人格模板应有 9 种, 实际 {len(personas)}"
     for name in personas:
         templates = commit_gen.COMMIT_TEMPLATES[name]
         assert 3 <= len(templates) <= 5, f"{name} 模板数 {len(templates)} 不在 3-5"
@@ -157,12 +201,18 @@ def check_commit_mock_fallback() -> str:
 
 
 def check_commit_showcase() -> str:
-    """测试「全部人格」命令: generate_showcase 覆盖全部人格."""
+    """测试「全部人格」命令: generate_showcase 覆盖全部人格且与人格判定对齐."""
     showcase = commit_gen.generate_showcase("巨无霸")
-    assert len(showcase) == len(commit_gen.COMMIT_TEMPLATES) == 6, showcase
+    template_personas = set(commit_gen.COMMIT_TEMPLATES)
+    judged_personas = set(persona.list_persona_types())
+    assert template_personas == judged_personas, (
+        f"人格与模板不同步: 仅模板有 {template_personas - judged_personas}, "
+        f"仅判定有 {judged_personas - template_personas}"
+    )
+    assert len(showcase) == 9, len(showcase)
     for persona_type, message in showcase:
         assert message and "{" not in message and "}" not in message, message
-    return "generate_showcase 为 6 种人格各生成一条, 占位符填充完整"
+    return "generate_showcase 为 9 种人格各生成一条, 人格/模板集合完全一致"
 
 
 def check_persona_key_case() -> str:
@@ -301,6 +351,26 @@ def check_easter_egg_asset() -> str:
     return f"彩蛋字符画 {len(lines)} 行(要求 15-20), 内容完整"
 
 
+def check_easter_eggs() -> str:
+    """测试彩蛋清单: 至少 10 个, 字段完整, 日期型自动判断正确."""
+    from datetime import date
+
+    eggs = easter_eggs.list_easter_eggs()
+    assert len(eggs) >= 10, f"彩蛋仅 {len(eggs)} 个, 要求 >= 10"
+    ids = [egg.id for egg in eggs]
+    assert len(ids) == len(set(ids)), "彩蛋 id 存在重复"
+    for egg in eggs:
+        assert egg.name and egg.trigger and egg.reward, f"{egg.id} 字段不完整"
+        assert egg.kind in ("dialogue", "date"), f"{egg.id} 类型非法: {egg.kind}"
+        assert easter_eggs.get_egg(egg.id) is egg
+    assert easter_eggs.get_egg("not-exist") is None
+    assert easter_eggs.date_triggered_eggs(date(2026, 10, 24)) == ["programmer_day"]
+    assert easter_eggs.date_triggered_eggs(date(2026, 10, 25)) == ["countdown_final"]
+    assert easter_eggs.date_triggered_eggs(date(2026, 10, 20)) == []
+    date_kind = sum(1 for egg in eggs if egg.kind == "date")
+    return f"{len(eggs)} 个彩蛋(含 {date_kind} 个日期型), 字段完整, 日期判断正确"
+
+
 def check_skill_md_size() -> str:
     """检查 SKILL.md 正文不超过 500 行(规格硬约束)."""
     text = (PROJECT_ROOT / "SKILL.md").read_text(encoding="utf-8")
@@ -313,6 +383,7 @@ def check_skill_md_size() -> str:
 CHECKS: tuple[tuple[str, Callable[[], str]], ...] = (
     ("文件完整性", check_files_exist),
     ("人格判定矩阵", check_persona_matrix),
+    ("MBTI 四字母代码", check_mbti_code),
     ("人格维度计分", check_persona_scores),
     ("人格非法输入", check_persona_invalid),
     ("commit 模板与生成", check_commit_templates),
@@ -322,6 +393,7 @@ CHECKS: tuple[tuple[str, Callable[[], str]], ...] = (
     ("Token 掩码工具", check_token_utils),
     ("Token 写入 .env", check_save_token_to_env),
     ("只读工具白名单", check_readonly_tool_whitelist),
+    ("彩蛋清单", check_easter_eggs),
     ("无 Token 降级", check_degradation_no_token),
     ("Token 安全扫描", check_security_scan),
     ("参赛声明官方原文", check_declaration_official),

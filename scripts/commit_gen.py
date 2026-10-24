@@ -26,6 +26,10 @@ MOCK_PRODUCTS: tuple[str, ...] = (
     "可乐",
     "麦满分",
     "脆汁鸡",
+    "麦旋风",
+    "安格斯厚牛堡",
+    "麦香鱼",
+    "菠萝派",
 )
 
 #: 每种人格的 commit 模板池, {product} 与 {num} 为占位符
@@ -66,6 +70,24 @@ COMMIT_TEMPLATES: dict[str, tuple[str, ...]] = {
         "feat: 新增{product}夜班模式，24/7 可用 🌙",
         "fix: 修复了凌晨{num}点{product}缺货的致命问题 🌙",
         "docs: 补充凌晨发布 checklist，含{product}应急采购通道 🌙",
+    ),
+    "麦淇淋甜蜜派": (
+        "feat: 新增{product}双倍糖模式，默认全糖，苦寒退散 🍦",
+        "style: 全局配色切换马卡龙色系，甜度溢出警告 🍦",
+        "fix: 修复了{product}不够甜导致的幸福感缺失 🍦",
+        "test: 补充{product}甜度测试，最低标准：开心 🍦",
+    ),
+    "麦当劳效率侠": (
+        "perf: 点餐到出餐压缩到 90 秒，全链路优化 ⚡",
+        "refactor: 删除所有纠结逻辑，{product}决策树压平 ⚡",
+        "feat: 新增{product}一键复购，两次点击内完成 ⚡",
+        "chore: 清理冗余流程，构建时间缩短{num}% ⚡",
+    ),
+    "随心配体验官": (
+        "feat: 新增{product}随机模式，1+1 随心配 🎲",
+        "refactor: 把选择困难症重构为 feature，惊喜率 100% 🎲",
+        "fix: 修复了{product}隐藏菜单太隐藏的问题 🎲",
+        "style: 随机切换主题皮肤，每次刷新都新鲜 🎲",
     ),
 }
 
@@ -109,7 +131,7 @@ def generate_showcase(product_name: str | None = None) -> list[tuple[str, str]]:
     """为全部人格各生成一条 commit, 用于「全部人格」命令.
 
     Returns:
-        [(人格类型, commit message), ...] 共 6 条.
+        [(人格类型, commit message), ...] 共 9 条.
     """
     return [(name, generate_commit(name, product_name)) for name in COMMIT_TEMPLATES]
 
