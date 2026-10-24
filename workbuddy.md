@@ -55,6 +55,17 @@
 | 文档同步 | SKILL.md 彩蛋机制、persona-matrix.md 人格/四字母矩阵、README 功能与示例 | 文档表格经代码交叉验证 9/9 一致 |
 | 自检扩容 | verify.py 从 14 项扩展到 20 项（新增 MBTI、彩蛋、人格/模板对齐检查） | 全绿 ✅ 20/20 |
 
+### 第 3 轮迭代（GitHub 发布）
+
+| 阶段 | 对话内容 | 产出 |
+|---|---|---|
+| 需求 | 「发布到 github 再给我一份标题和简介」 | 仓库创建 + 推送 + 报名 Issue 文案 |
+| 排障 | `git push` TLS 波动重试；git 不读 `GH_TOKEN` 环境变量（could not read Username）→ `gh auth setup-git` 配置凭据后推送成功 | 3 个提交完整推送到 master |
+| 安全复核 | PAT 仅经环境变量使用未落盘；本地 `git grep -F` 扫全部历史 + 远端 tree 双重确认 `.env` 未推送 | git 历史与远端均无 Token 明文 |
+| 内容校验 | raw.githubusercontent.com 逐文件 diff 遇网络超时，改用 `gh api contents` base64 解码逐字节比对 | 远端 17 个文件与本地逐字节一致 ✅ |
+
+仓库地址：https://github.com/xkx121029/mcd-vibe-commit（PUBLIC，默认分支 master）。
+
 ## 4. Skill 调试方法
 
 ```bash
@@ -66,7 +77,7 @@ python verify.py
 # 各脚本独立运行
 python scripts/init.py        # 横幅 + 环境自检（Token 只显示掩码）
 python scripts/persona.py     # 三组答题的人格判定演示
-python scripts/commit_gen.py  # 六种人格的 commit 演示（mock 模式）
+python scripts/commit_gen.py  # 九种人格的 commit 演示（mock 模式）
 python scripts/mcp_client.py  # 真实 MCP 调用（需 .env 配置 Token）
 ```
 
